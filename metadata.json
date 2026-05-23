@@ -1,0 +1,6 @@
+{
+  "name": "Aka Elite Chat",
+  "description": "A high-performance, dark-themed messaging app inspired by modern Telegram clients, featuring voice messages, image sharing, and real-time synchronization.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
