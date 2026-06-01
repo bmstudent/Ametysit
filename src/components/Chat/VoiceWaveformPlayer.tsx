@@ -127,7 +127,17 @@ export function VoiceWaveformPlayer({ message, isMe }: VoiceWaveformPlayerProps)
   const progressRatio = currentTime / duration;
 
   return (
-    <div className="flex items-center gap-4 w-full select-none" id={`voice-player-${message._id}`}>
+    <div className="flex items-center gap-4 w-full select-none relative" id="voice-player" data-message-id={message._id}>
+      {/* Smooth Ambient Glow backdrop behind playing bar */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isPlaying ? 0.08 : 0 }}
+        transition={{ duration: 0.5, ease: "easeInOut" }}
+        className={`absolute inset-0 -m-3 rounded-2xl blur-xl pointer-events-none -z-10 transition-colors duration-500 ${
+          isMe ? "bg-white" : "bg-indigo-500"
+        }`}
+      />
+
       {/* Play/Pause Button wraps */}
       <button
         onClick={handleTogglePlay}
@@ -153,21 +163,28 @@ export function VoiceWaveformPlayer({ message, isMe }: VoiceWaveformPlayerProps)
             const barProgress = i / samples.length;
             const isActive = barProgress <= progressRatio;
 
-            // Generate a professional bouncing shift for active bars while playing
-            const animationProps = isPlaying && isActive
+            // Generate a professional pulsing/bouncing shift for bars while playing
+            const animationProps = isPlaying
               ? {
-                  y: [0, -3.5, 3.5, 0],
+                  scaleY: isActive ? [1, 1.35, 0.85, 1.2, 1] : [1, 0.92, 1.05, 0.95, 1],
+                  opacity: isActive ? [0.85, 1, 0.75, 1, 0.85] : [0.35, 0.25, 0.4, 0.3, 0.35],
                 }
-              : {};
+              : {
+                  scaleY: 1,
+                  opacity: isActive ? 1 : 0.35,
+                };
 
-            const transitionProps = isPlaying && isActive
+            const transitionProps = isPlaying
               ? {
-                  duration: 1.0,
+                  duration: 1.4,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: i * 0.04,
+                  delay: i * 0.03,
                 }
-              : {};
+              : {
+                  duration: 0.4,
+                  ease: "easeOut",
+                };
 
             return (
               <motion.div
@@ -193,6 +210,34 @@ export function VoiceWaveformPlayer({ message, isMe }: VoiceWaveformPlayerProps)
               />
             );
           })}
+
+          {/* Subtle Progress Tracking Line (Audio Head) with elegant transitions */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: (isPlaying || progressRatio > 0) && progressRatio < 1 ? 0.85 : 0,
+              left: `${progressRatio * 100}%`
+            }}
+            transition={{
+              opacity: { duration: 0.3, ease: "easeInOut" },
+              left: { duration: 0.075, ease: "linear" }
+            }}
+            className={`absolute top-0 bottom-1.5 w-[2px] pointer-events-none rounded-full ${
+              isMe 
+                ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.85)]" 
+                : "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.85)]"
+            }`}
+            style={{ 
+              transform: "translateX(-50%)",
+            }}
+          >
+            {/* Top glowing audio head orb */}
+            <div 
+              className={`absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                isMe ? "bg-white" : "bg-indigo-300"
+              }`} 
+            />
+          </motion.div>
         </div>
 
         {/* Time Tracking Row */}

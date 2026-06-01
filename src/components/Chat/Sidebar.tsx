@@ -23,6 +23,40 @@ import {
 } from 'lucide-react';
 import { socket } from '../../lib/socket';
 
+const getInitialColor = (username: string) => {
+  const name = username.toLowerCase();
+  if (name.includes("eva") || name.includes("summer")) return "bg-amber-500 text-slate-900";
+  if (name.includes("alexandra") || name.includes("smith")) return "bg-red-500 text-white";
+  if (name.includes("mike") || name.includes("apple")) return "bg-pink-500 text-white";
+  if (name.includes("club") || name.includes("evening")) return "bg-orange-500 text-white";
+  if (name.includes("pirate") || name.includes("old")) return "bg-emerald-600 text-white";
+  if (name.includes("max") || name.includes("bright")) return "bg-emerald-400 text-slate-900";
+  if (name.includes("natalie") || name.includes("parker")) return "bg-cyan-500 text-slate-900";
+  if (name.includes("davy") || name.includes("jones")) return "bg-fuchsia-500 text-white";
+  if (name.includes("aiden")) return "bg-blue-500 text-white";
+  if (name.includes("sona")) return "bg-indigo-505 text-white";
+  
+  const colors = [
+    "bg-red-500 text-white", "bg-orange-500 text-white", "bg-amber-500 text-slate-900",
+    "bg-emerald-500 text-white", "bg-teal-500 text-white", "bg-cyan-500 text-slate-900",
+    "bg-blue-500 text-white", "bg-indigo-500 text-white", "bg-violet-500 text-white",
+    "bg-purple-500 text-white", "bg-pink-500 text-white", "bg-rose-500 text-white"
+  ];
+  let sum = 0;
+  for (let i = 0; i < username.length; i++) {
+    sum += username.charCodeAt(i);
+  }
+  return colors[sum % colors.length];
+};
+
+const getInitials = (username: string) => {
+  const parts = username.split(" ");
+  if (parts.length >= 2) {
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  return username.substring(0, 2).toUpperCase();
+};
+
 interface SidebarProps {
   user: User;
   activeRoom: string;
@@ -71,12 +105,44 @@ export function Sidebar({
   const [newChatTab, setNewChatTab] = useState<'dm' | 'channel'>('dm');
   const [newChannelName, setNewChannelName] = useState('');
   const [peopleSearch, setPeopleSearch] = useState('');
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Server-side backed group channels list
   const [dbChannels, setDbChannels] = useState<{ id: string; name: string; lastMsg: string; unread?: number; time?: string; starred?: boolean; isLocked?: boolean }[]>([]);
 
   // Toggle star mode filter
   const [starFilterActive, setStarFilterActive] = useState(false);
+
+  // Drafts state for displaying [Draft] badge in sidebar list
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const handleDraftsUpdate = () => {
+      const nextDrafts: Record<string, string> = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("chat_draft_")) {
+            const roomId = key.replace("chat_draft_", "");
+            const value = localStorage.getItem(key);
+            if (value) {
+              nextDrafts[roomId] = value;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Draft parsing failed:", e);
+      }
+      setDrafts(nextDrafts);
+    };
+
+    handleDraftsUpdate();
+
+    window.addEventListener("chat_drafts_updated", handleDraftsUpdate);
+    return () => {
+      window.removeEventListener("chat_drafts_updated", handleDraftsUpdate);
+    };
+  }, []);
 
   // Helper function to auto-scroll to the first unread message when Clicking/Routing rooms
   const handleRoomSelectWithNotifications = (roomId: string, count: number) => {
@@ -174,6 +240,7 @@ export function Sidebar({
   // Handle Dynamic Channel Creation
   const handleCreateChannel = async () => {
     if (newChannelName.trim()) {
+      setModalError(null);
       try {
         const token = localStorage.getItem('token');
         const res = await fetch('/api/channels', {
@@ -191,10 +258,11 @@ export function Sidebar({
           onRoomSelect(newChan.id);
         } else {
           const errData = await res.json();
-          alert(errData.message || "Failed to create channel");
+          setModalError(errData.message || "Failed to create channel");
         }
       } catch (e) {
         console.error("Failed to create channel", e);
+        setModalError("Server connection error. Please try again.");
       }
     }
   };
@@ -210,10 +278,14 @@ export function Sidebar({
 
   // Base DM items representing users from the screen
   const usersList = [
-    { id: 'aiden', username: 'Aiden Cruz', lastMsg: 'Can you review the PR?', phrase: 'PR review', unread: 1, time: '2m', isOnline: true, isPinned: true },
-    { id: 'sona', username: 'Sona Kim', lastMsg: 'Sent you the deck 📎', phrase: 'the deck', unread: 0, time: '34m', isOnline: true },
-    { id: 'ravi', username: 'Ravi Okafor', lastMsg: 'Thanks, will circle back', phrase: 'circle back', unread: 0, time: '3h', isOnline: false },
-    { id: 'lena', username: 'Lena Holt', lastMsg: "Let's sync tomorrow", phrase: 'sync tomorrow', unread: 0, time: '5h', isOnline: false },
+    { id: 'eva', username: 'Eva Summer', lastMsg: 'Reminds me of a Chinese proverb: the best...', phrase: 'Chinese proverb', unread: 0, time: '11:00 AM', isOnline: true, isPinned: true },
+    { id: 'alexandra', username: 'Alexandra Smith', lastMsg: 'This is amazing!', phrase: 'amazing', unread: 2, time: '10:00 AM', isOnline: false },
+    { id: 'mike', username: 'Mike Apple', lastMsg: '😄 Sticker', phrase: 'sticker', unread: 2, time: '9:00 AM', isOnline: false },
+    { id: 'evening', username: 'Evening Club', lastMsg: 'Eva: Photo', phrase: 'photo', unread: 0, time: '8:00 AM', isOnline: false },
+    { id: 'oldpirates', username: 'Old Pirates', lastMsg: 'Max: Yo-ho-ho!', phrase: 'Yo-ho-ho', unread: 0, time: '7:00 AM', isOnline: false },
+    { id: 'max', username: 'Max Bright', lastMsg: 'How about some coffee?', phrase: 'coffee', unread: 0, time: '6:00 AM', isOnline: true },
+    { id: 'natalie', username: 'Natalie Parker', lastMsg: 'OK, great)', phrase: 'great', unread: 0, time: '5:00 AM', isOnline: true },
+    { id: 'davy', username: 'Davy Jones', lastMsg: 'Keynote.pdf', phrase: 'keynote', unread: 0, time: '4:00 AM', isOnline: false },
   ];
 
   return (
@@ -459,11 +531,11 @@ export function Sidebar({
                     )}
 
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-white shadow-inner overflow-hidden">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-inner overflow-hidden uppercase transition-all duration-300 ${getInitialColor(item.username)}`}>
                         {imageSrc ? (
                           <img src={imageSrc} alt={item.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
-                          item.username.charAt(0)
+                          getInitials(item.username)
                         )}
                       </div>
                       {isOnline && (
@@ -476,7 +548,14 @@ export function Sidebar({
                         <span className={`text-[12px] font-bold truncate ${isItemActive ? 'text-white' : 'text-slate-300'}`}>{item.username}</span>
                         <span className="text-[9px] text-slate-500 font-bold font-mono">{item.time}</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate font-medium">{statusMessage}</p>
+                      {drafts[roomID] ? (
+                        <p className="text-[11px] truncate font-medium flex items-center gap-1.5">
+                          <span className="text-red-400 font-extrabold uppercase text-[8px] font-mono tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded-md shrink-0">Draft</span>
+                          <span className="text-slate-300 italic truncate">{drafts[roomID]}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 truncate font-medium">{statusMessage}</p>
+                      )}
                     </div>
 
                     {!isItemActive && dmUnread > 0 && (
@@ -546,7 +625,14 @@ export function Sidebar({
                           <span className="text-[9px] text-slate-500 font-bold font-mono">{channel.time}</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate font-medium">{channel.lastMsg}</p>
+                      {drafts[channel.id] ? (
+                        <p className="text-[11px] truncate font-medium flex items-center gap-1.5">
+                          <span className="text-red-400 font-extrabold uppercase text-[8px] font-mono tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded-md shrink-0">Draft</span>
+                          <span className="text-slate-300 italic truncate">{drafts[channel.id]}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 truncate font-medium">{channel.lastMsg}</p>
+                      )}
                     </div>
 
                     {!isChannelActive && chUnread > 0 && (
@@ -594,11 +680,11 @@ export function Sidebar({
                     )}
 
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-white shadow-inner overflow-hidden">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-inner overflow-hidden uppercase transition-all duration-300 ${getInitialColor(item.username)}`}>
                         {imageSrc ? (
                           <img src={imageSrc} alt={item.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
-                          item.username.charAt(0)
+                          getInitials(item.username)
                         )}
                       </div>
                       {isOnline ? (
@@ -613,10 +699,17 @@ export function Sidebar({
                         <span className={`text-[12px] font-bold truncate ${isItemActive ? 'text-white' : 'text-slate-300'}`}>{item.username}</span>
                         <span className="text-[9px] text-slate-500 font-bold font-mono">{item.time}</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate font-medium flex items-center gap-1">
-                        {item.id === 'sona' && <Paperclip size={10} className="text-slate-400" />}
-                        {statusMessage}
-                      </p>
+                      {drafts[roomID] ? (
+                        <p className="text-[11px] truncate font-medium flex items-center gap-1.5">
+                          <span className="text-red-400 font-extrabold uppercase text-[8px] font-mono tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded-md shrink-0">Draft</span>
+                          <span className="text-slate-300 italic truncate">{drafts[roomID]}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 truncate font-medium flex items-center gap-1">
+                          {item.id === 'sona' && <Paperclip size={10} className="text-slate-400" />}
+                          {statusMessage}
+                        </p>
+                      )}
                     </div>
 
                     {!isItemActive && dmUnread > 0 && (
@@ -759,7 +852,10 @@ export function Sidebar({
               {/* Dialog switcher tabs */}
               <div className="grid grid-cols-2 gap-2 bg-[#0B0D18] p-1 rounded-xl mb-5">
                 <button
-                  onClick={() => setNewChatTab('dm')}
+                  onClick={() => {
+                    setNewChatTab('dm');
+                    setModalError(null);
+                  }}
                   className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     newChatTab === 'dm' ? 'bg-[#7C3AED] text-white shadow-md' : 'text-slate-400 hover:text-white'
                   }`}
@@ -767,7 +863,10 @@ export function Sidebar({
                   Direct message
                 </button>
                 <button
-                  onClick={() => setNewChatTab('channel')}
+                  onClick={() => {
+                    setNewChatTab('channel');
+                    setModalError(null);
+                  }}
                   className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     newChatTab === 'channel' ? 'bg-[#7C3AED] text-white shadow-md' : 'text-slate-400 hover:text-white'
                   }`}
@@ -775,6 +874,13 @@ export function Sidebar({
                   Channel
                 </button>
               </div>
+
+              {modalError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold leading-tight flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                  <span className="flex-1 text-[11px]">{modalError}</span>
+                </div>
+              )}
 
               {/* Direct Message contacts select list */}
               {newChatTab === 'dm' ? (

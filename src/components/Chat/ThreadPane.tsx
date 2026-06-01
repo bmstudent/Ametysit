@@ -29,8 +29,17 @@ export function ThreadPane({ parentMessage, user, activeRoom, onClose, onViewPro
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
-          const data = await res.json();
-          setReplies(data);
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            setReplies(data);
+          } else {
+            console.warn("Expected JSON response but received non-JSON payload from thread replies endpoint");
+            setReplies([]);
+          }
+        } else {
+          console.error(`Thread replies endpoint returned status ${res.status}`);
+          setReplies([]);
         }
       } catch (err) {
         console.error("Failed to load thread replies", err);
@@ -193,7 +202,13 @@ export function ThreadPane({ parentMessage, user, activeRoom, onClose, onViewPro
           {replies.map((reply) => {
             const isMe = reply.sender?._id === user.id;
             return (
-              <div key={reply._id} className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
+              <motion.div
+                key={reply._id}
+                initial={{ opacity: 0, scale: 0.96, y: 8, x: isMe ? 16 : -16 }}
+                animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 220 }}
+                className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse' : ''}`}
+              >
                 <button 
                   onClick={() => onViewProfile && onViewProfile(reply.sender?._id)}
                   className="w-6.5 h-6.5 shrink-0 rounded-lg bg-[#1B1D2C] text-slate-300 font-extrabold flex items-center justify-center text-[9px] uppercase border border-white/5"
@@ -223,7 +238,7 @@ export function ThreadPane({ parentMessage, user, activeRoom, onClose, onViewPro
                     {reply.content}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
           <div ref={repliesEndRef} />

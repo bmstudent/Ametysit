@@ -57,6 +57,7 @@ export function UserProfileModal({ userId, currentUserId, onClose, onUpdateCurre
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [avatarUrlInput, setAvatarUrlInput] = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwnProfile = userId === currentUserId;
@@ -171,8 +172,9 @@ export function UserProfileModal({ userId, currentUserId, onClose, onUpdateCurre
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setAvatarError(null);
       if (file.size > 1.5 * 1024 * 1024) {
-        alert("Image too large. Please select an image under 1.5MB.");
+        setAvatarError("Image too large. Please select an image under 1.5MB.");
         return;
       }
       const reader = new FileReader();
@@ -397,13 +399,22 @@ export function UserProfileModal({ userId, currentUserId, onClose, onUpdateCurre
                         />
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => {
+                            setAvatarError(null);
+                            fileInputRef.current?.click();
+                          }}
                           disabled={uploadingAvatar}
                           className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase rounded-lg border border-purple-500/10 transition-all cursor-pointer font-mono"
                         >
                           Choose
                         </button>
                       </div>
+
+                      {avatarError && (
+                        <div className="mt-2 text-[10px] text-red-400 font-bold bg-red-500/5 px-3 py-2 rounded-lg border border-red-500/10 text-left">
+                          ⚠️ {avatarError}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}

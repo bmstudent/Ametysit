@@ -26,9 +26,25 @@ import {
   MessageSquare,
   ArrowLeft,
   FileText,
+  Forward,
+  List,
 } from "lucide-react";
 
 import { socket } from "../../lib/socket";
+
+function isOnlyEmojis(str: string): boolean {
+  if (!str || str.trim().length === 0) return false;
+  const noSpace = str.replace(/\s/g, "");
+  try {
+    const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Component})+$/u;
+    const codePoints = Array.from(noSpace);
+    if (codePoints.length > 5) return false;
+    return emojiRegex.test(noSpace);
+  } catch (err) {
+    const simpleRegex = /^[\u2000-\u3300\ud83c-\ud83d\ud83e\udff0-\udfff\u200d\uFE0F\s]+$/;
+    return simpleRegex.test(noSpace);
+  }
+}
 
 interface ChatWindowProps {
   user: User;
@@ -65,6 +81,19 @@ export function ChatWindow({
   className = "",
 }: ChatWindowProps) {
   const [input, setInput] = useState("");
+  const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
+
+  // Load draft when activeRoom changes
+  useEffect(() => {
+    setShowInputEmojiPicker(false);
+    try {
+      const draft = localStorage.getItem(`chat_draft_${activeRoom}`) || "";
+      setInput(draft);
+    } catch (err) {
+      console.error("Draft loading failed:", err);
+      setInput("");
+    }
+  }, [activeRoom]);
   const [isRecording, setIsRecording] = useState(false);
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
   const [hoveredReactionKey, setHoveredReactionKey] = useState<string | null>(
@@ -84,6 +113,23 @@ export function ChatWindow({
 
   // --- Pin message state ---
   const [isPinnedPaneOpen, setIsPinnedPaneOpen] = useState(false);
+  const [currentPinnedCycleIndex, setCurrentPinnedCycleIndex] = useState<number>(-1);
+
+  const pinnedList = messages.filter((m) => m.pinned);
+  const prevPinnedLengthRef = useRef(0);
+
+  useEffect(() => {
+    if (pinnedList.length > 0) {
+      if (pinnedList.length > prevPinnedLengthRef.current) {
+        setCurrentPinnedCycleIndex(pinnedList.length - 1);
+      } else if (currentPinnedCycleIndex < 0 || currentPinnedCycleIndex >= pinnedList.length) {
+        setCurrentPinnedCycleIndex(pinnedList.length - 1);
+      }
+    } else {
+      setCurrentPinnedCycleIndex(-1);
+    }
+    prevPinnedLengthRef.current = pinnedList.length;
+  }, [messages, currentPinnedCycleIndex, pinnedList.length]);
 
   // --- Confirmation of edits state ---
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
@@ -136,9 +182,16 @@ export function ChatWindow({
   const [isRecordingPaused, setIsRecordingPaused] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [unreadNewMessages, setUnreadNewMessages] = useState<Message[]>([]);
+  const prevMessagesLength = useRef(messages.length);
+  const prevActiveRoom = useRef(activeRoom);
   const [videoTime, setVideoTime] = useState(0);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isSimulatedVideo, setIsSimulatedVideo] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const videoStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -523,6 +576,17 @@ export function ChatWindow({
     }
   };
 
+  const handleRetakeRecord = () => {
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl);
+    }
+    videoChunksRef.current = [];
+    setVideoUrl(null);
+    setVideoThumbnail(null);
+    setVideoTime(0);
+    startVideoMode();
+  };
+
   const activeTyping = Object.entries(typingUsers)
     .filter(([name, isTyping]) => isTyping && name !== user.username)
     .map(([name]) => name);
@@ -651,37 +715,159 @@ export function ChatWindow({
     return false;
   };
 
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isSp = el.scrollHeight - el.scrollTop - el.clientHeight > 150;
+    setIsScrolledUp(isSp);
+    if (!isSp) {
+      setUnreadNewMessages([]);
+    }
+  };
+
+  const handleJumpToFirstUnread = () => {
+    if (unreadNewMessages.length > 0) {
+      const firstUnread = unreadNewMessages[0];
+      scrollToMessage(firstUnread._id);
+    } else {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }
+    setUnreadNewMessages([]);
+  };
+
+  useEffect(() => {
+    // If room changes, reset tracker
+    if (activeRoom !== prevActiveRoom.current) {
+      setUnreadNewMessages([]);
+      setIsScrolledUp(false);
+      prevActiveRoom.current = activeRoom;
+      prevMessagesLength.current = messages.length;
+      return;
+    }
+
+    if (messages.length > prevMessagesLength.current) {
+      const newArrivals = messages.slice(prevMessagesLength.current);
+      const unreadFromOthers = newArrivals.filter(msg => msg.sender?._id !== user.id);
+      if (isScrolledUp && unreadFromOthers.length > 0) {
+        setUnreadNewMessages(prev => {
+          const existingIds = new Set(prev.map(p => p._id));
+          const filterDuplicates = unreadFromOthers.filter(m => !existingIds.has(m._id));
+          return [...prev, ...filterDuplicates];
+        });
+      }
+    }
+    prevMessagesLength.current = messages.length;
+  }, [messages, isScrolledUp, activeRoom, user.id]);
+
   useEffect(() => {
     if (scrollRef.current) {
       const scrolledToUnread = handleAutoScrollToUnread();
       if (!scrolledToUnread) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        const lastMsg = messages[messages.length - 1];
+        const sentByMe = lastMsg && lastMsg.sender?._id === user.id;
+
+        // Only snap to bottom if not scrolled up, or if user themselves sent the message
+        if (!isScrolledUp || sentByMe) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
       }
     }
   }, [messages, activeTyping.length]);
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
+    const value = e.target.value;
+    setInput(value);
+    try {
+      if (value.trim()) {
+        localStorage.setItem(`chat_draft_${activeRoom}`, value);
+      } else {
+        localStorage.removeItem(`chat_draft_${activeRoom}`);
+      }
+      window.dispatchEvent(new Event("chat_drafts_updated"));
+    } catch (err) {
+      console.error("Draft saving error:", err);
+    }
+
     socket.emit("typing", {
       roomId: activeRoom,
-      isTyping: e.target.value.length > 0,
+      isTyping: value.length > 0,
+    });
+  };
+
+  const handleInputEmojiSelect = (emoji: string) => {
+    const newValue = input + emoji;
+    setInput(newValue);
+    try {
+      localStorage.setItem(`chat_draft_${activeRoom}`, newValue);
+      window.dispatchEvent(new Event("chat_drafts_updated"));
+    } catch (err) {
+      console.error("Draft saving error:", err);
+    }
+    socket.emit("typing", {
+      roomId: activeRoom,
+      isTyping: true,
+    });
+  };
+
+  const handleForwardMessage = (msg: Message) => {
+    const textToCopy = msg.content || "";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedMessageId(msg._id);
+      setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 1500);
+    }).catch(err => {
+      console.error("Failed to copy message content: ", err);
     });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isRecording) return;
-    onSendMessage(input, "text", undefined, replyToMessage?._id || undefined);
-    setInput("");
-    setReplyToMessage(null);
-    socket.emit("typing", { roomId: activeRoom, isTyping: false });
+    if (isRecording || isVideoMode) return;
+    
+    if (attachedImage) {
+      onSendMessage(
+        input.trim() || "Sent an image",
+        "image",
+        attachedImage,
+        replyToMessage?._id || undefined,
+      );
+      setAttachedImage(null);
+      setInput("");
+      try {
+        localStorage.removeItem(`chat_draft_${activeRoom}`);
+        window.dispatchEvent(new Event("chat_drafts_updated"));
+      } catch (err) {
+        console.error("Draft clearing error:", err);
+      }
+      setReplyToMessage(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      socket.emit("typing", { roomId: activeRoom, isTyping: false });
+    } else if (input.trim()) {
+      onSendMessage(input, "text", undefined, replyToMessage?._id || undefined);
+      setInput("");
+      try {
+        localStorage.removeItem(`chat_draft_${activeRoom}`);
+        window.dispatchEvent(new Event("chat_drafts_updated"));
+      } catch (err) {
+        console.error("Draft clearing error:", err);
+      }
+      setReplyToMessage(null);
+      socket.emit("typing", { roomId: activeRoom, isTyping: false });
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setAttachmentError(null);
       if (file.size > 2 * 1024 * 1024) {
-        alert("File too large (max 2MB)");
+        setAttachmentError("File too large. Maximum supported direct transfer size is 2MB.");
+        setTimeout(() => setAttachmentError(null), 5000);
         return;
       }
       const isImage = file.type.startsWith("image/");
@@ -689,12 +875,7 @@ export function ChatWindow({
       reader.onload = (event) => {
         const base64 = event.target?.result as string;
         if (isImage) {
-          onSendMessage(
-            "Sent an image",
-            "image",
-            base64,
-            replyToMessage?._id || undefined,
-          );
+          setAttachedImage(base64);
         } else {
           onSendMessage(
             file.name,
@@ -702,8 +883,8 @@ export function ChatWindow({
             base64,
             replyToMessage?._id || undefined,
           );
+          setReplyToMessage(null);
         }
-        setReplyToMessage(null);
       };
       reader.readAsDataURL(file);
     }
@@ -748,10 +929,28 @@ export function ChatWindow({
   }
 
   return (
-    <div className={`flex-1 flex flex-col relative h-full bg-[#0F111A] overflow-hidden ${className}`}>
+    <div className={`flex-1 flex flex-col relative h-full bg-[#131418] overflow-hidden ${className}`}>
       {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none select-none overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
+      <div className="absolute inset-0 pointer-events-none select-none overflow-hidden z-0 bg-[#131418]">
+        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" className="absolute inset-0 w-full h-full opacity-60">
+          <defs>
+            <pattern id="lowpoly-triangles" width="280" height="242" patternUnits="userSpaceOnUse">
+              <polygon points="0,0 140,0 70,121" fill="#181a24" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="140,0 280,0 210,121" fill="#1b1d28" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="70,121 210,121 140,0" fill="#20222f" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="0,0 70,121 0,121" fill="#15161e" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="280,0 280,121 210,121" fill="#191b26" stroke="#121319" strokeWidth="0.5" />
+              
+              <polygon points="0,121 70,121 140,242" fill="#1e202d" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="140,242 210,121 70,121" fill="#15161c" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="70,121 140,242 210,121" fill="#1a1c26" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="210,121 280,121 140,242" fill="#14151c" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="0,121 0,242 140,242" fill="#1f212e" stroke="#121319" strokeWidth="0.5" />
+              <polygon points="280,121 280,242 140,242" fill="#171822" stroke="#121319" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#lowpoly-triangles)" />
+        </svg>
       </div>
 
       {/* Header */}
@@ -915,24 +1114,82 @@ export function ChatWindow({
       </AnimatePresence>
 
       {/* Pinned Messages Header Alert */}
-      {messages.filter((m) => m.pinned).length > 0 && (
-        <div className="bg-[#121420]/90 border-b border-indigo-500/10 px-8 py-2.5 flex items-center justify-between select-none z-15">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
-            <span className="text-[11px] font-extrabold font-mono text-indigo-400 uppercase tracking-wider">
-              Pinned Messages ({messages.filter((m) => m.pinned).length})
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsPinnedPaneOpen(!isPinnedPaneOpen)}
-              className="px-2.5 py-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold uppercase rounded-lg hover:bg-indigo-500/25 transition-all text-center cursor-pointer"
+      {pinnedList.length > 0 && (() => {
+        const currentIndex = (currentPinnedCycleIndex >= 0 && currentPinnedCycleIndex < pinnedList.length)
+          ? currentPinnedCycleIndex
+          : pinnedList.length - 1;
+        const activePinned = pinnedList[currentIndex];
+        if (!activePinned) return null;
+
+        const handleHeaderClick = () => {
+          scrollToMessage(activePinned._id);
+          // Cycle through pinned messages going backwards (older) - exactly like Telegram.
+          if (pinnedList.length > 1) {
+            const nextIdx = currentIndex === 0 ? pinnedList.length - 1 : currentIndex - 1;
+            setCurrentPinnedCycleIndex(nextIdx);
+          }
+        };
+
+        return (
+          <div className="bg-[#121420]/95 backdrop-blur-md border-b border-indigo-500/10 px-8 py-2.5 flex items-center justify-between select-none z-15 gap-4">
+            <div 
+              onClick={handleHeaderClick}
+              className="flex-1 flex items-center gap-3.5 cursor-pointer min-w-0 group/pin-bar"
+              title={pinnedList.length > 1 ? "Click to cycle through pinned messages (backwards)" : "Click to jump to this pinned message"}
             >
-              {isPinnedPaneOpen ? "Hide List" : "View List"}
-            </button>
+              {/* Telegram-style Left Accent Line */}
+              <div className="w-1 h-8 bg-indigo-500 rounded-full shrink-0 shadow-sm shadow-indigo-500/50 animate-pulse" />
+              
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Pin size={11} className="text-indigo-400 shrink-0 transform -rotate-45 fill-indigo-400/20" />
+                  <p className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest leading-none font-mono">
+                    Pinned Message {pinnedList.length > 1 ? `(${pinnedList.length - currentIndex} of ${pinnedList.length})` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-300 leading-tight">
+                  <span className="font-bold text-slate-200 shrink-0">{activePinned.sender.username}:</span>
+                  <span className="truncate text-slate-400 group-hover/pin-bar:text-white transition-colors">
+                    {activePinned.content || `[${activePinned.type || 'Media'} Message]`}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              {/* List Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsPinnedPaneOpen(!isPinnedPaneOpen)}
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                  isPinnedPaneOpen 
+                    ? "bg-indigo-500/35 border-indigo-500/50 text-white" 
+                    : "bg-indigo-500/10 border-indigo-500/25 text-indigo-300 hover:bg-indigo-500/25 hover:text-white"
+                }`}
+                title="View all pinned messages"
+              >
+                <List size={14} className={isPinnedPaneOpen ? "animate-pulse" : ""} />
+              </button>
+
+              {/* Unpin Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  socket.emit("pin-message", {
+                    messageId: activePinned._id,
+                    isPinned: false,
+                  });
+                }}
+                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                title="Unpin this message"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Pinned Messages Pane */}
       <AnimatePresence>
@@ -961,7 +1218,7 @@ export function ChatWindow({
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 truncate">
-                      {msg.content || "[Media Message]"}
+                      {msg.content || `[${msg.type || 'Media'} Message]`}
                     </p>
                   </div>
                   <button
@@ -986,6 +1243,7 @@ export function ChatWindow({
       {/* Messages */}
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-6 py-8 space-y-6 scroll-smooth custom-scrollbar relative z-10"
       >
         <div className="flex justify-center mb-6">
@@ -1000,15 +1258,17 @@ export function ChatWindow({
             const originalMsg = msg.replyTo
               ? messages.find((m) => m._id === msg.replyTo)
               : null;
+            const containsOnlyEmojis = msg.type === "text" && isOnlyEmojis(msg.content);
             return (
               <motion.div
                 key={msg._id}
                 id={`msg-${msg._id}`}
-                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                initial={{ opacity: 0, scale: 0.95, y: 12, x: isMe ? 24 : -24 }}
                 animate={{
                   opacity: 1,
                   scale: 1,
                   y: 0,
+                  x: 0,
                   backgroundColor:
                     highlightedMessageId === msg._id
                       ? "rgba(139, 92, 246, 0.15)"
@@ -1133,10 +1393,10 @@ export function ChatWindow({
                         </div>
                       ) : msg.type === "audio" ? (
                         <div
-                          className={`p-4 rounded-[24px] flex flex-col min-w-[260px] ${
+                          className={`p-4 rounded-[18px] flex flex-col min-w-[260px] ${
                             isMe
-                              ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-br-none shadow-xl shadow-purple-500/20"
-                              : "bg-[#1A1E2A] text-white rounded-bl-none border border-white/5 backdrop-blur-md shadow-lg shadow-black/20"
+                              ? "bg-[#2b2d31] text-white rounded-br-none border border-white/5 shadow-xl shadow-black/30"
+                              : "bg-[#212327] text-white rounded-bl-none border border-white/5 shadow-lg shadow-black/30"
                           } ${msg.pinned ? "ring-2 ring-amber-500/40 shadow-amber-500/10" : ""}`}
                         >
                           {originalMsg && (
@@ -1315,10 +1575,10 @@ export function ChatWindow({
 
                           return (
                             <div
-                              className={`p-4 rounded-[22px] border shadow-xl flex flex-col gap-3.5 min-w-[260px] max-w-[320px] ${
+                              className={`p-4 rounded-[18px] border shadow-xl flex flex-col gap-3.5 min-w-[260px] max-w-[325px] ${
                                 isMe
-                                  ? "bg-gradient-to-br from-indigo-500 to-purple-600 border-indigo-500/20 text-white rounded-br-none shadow-purple-500/10"
-                                  : "bg-[#1A1E2A] border-white/5 text-slate-100 rounded-bl-none shadow-black/20"
+                                  ? "bg-[#2b2d31] border-white/5 text-white rounded-br-none shadow-black/20"
+                                  : "bg-[#212327] border-white/5 text-slate-100 rounded-bl-none shadow-black/20"
                               } ${msg.pinned ? "ring-2 ring-amber-500/40 shadow-amber-500/10" : ""}`}
                             >
                               {originalMsg && (
@@ -1627,11 +1887,15 @@ export function ChatWindow({
                           className={`group relative ${isMe ? "items-end" : "items-start"} flex flex-col max-w-full`}
                         >
                           <div
-                            className={`relative px-5 py-3.5 rounded-[22px] text-[15px] font-medium leading-relaxed shadow-lg ${
-                              isMe
-                                ? "bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] text-white rounded-br-none shadow-purple-500/20"
-                                : "bg-[#1A1E2A] text-slate-100 rounded-bl-none border border-white/5 shadow-black/20 px-6 py-4"
-                            } ${msg.pinned ? "ring-2 ring-amber-500/40 shadow-amber-500/10" : ""}`}
+                            className={
+                              containsOnlyEmojis
+                                ? `relative px-2 py-1 bg-transparent select-none shadow-none text-[48px] md:text-[56px] leading-[1.2] flex items-center justify-center transition-transform hover:scale-115 active:scale-95 duration-250 cursor-pointer`
+                                : `relative px-5 py-3.5 rounded-[18px] text-[15px] font-medium leading-relaxed shadow-lg ${
+                                    isMe
+                                      ? "bg-[#2b2d31] text-white rounded-br-none shadow-black/20"
+                                      : "bg-[#212327] text-slate-100 rounded-bl-none border border-white/5 shadow-black/20 px-6 py-4"
+                                  } ${msg.pinned ? "ring-2 ring-amber-500/40 shadow-amber-500/10" : ""}`
+                            }
                           >
                             {originalMsg && (
                               <div
@@ -1705,22 +1969,45 @@ export function ChatWindow({
                               </div>
                             ) : (
                               <>
-                                <span
-                                  className={
-                                    isMe
-                                      ? "cursor-pointer hover:opacity-90 select-text"
-                                      : "select-text"
-                                  }
-                                  onClick={() => {
-                                    if (isMe) {
-                                      setEditingMessageId(msg._id);
-                                      setEditValue(msg.content);
+                                {containsOnlyEmojis ? (
+                                  <motion.span
+                                    className="select-none inline-block drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] filter cursor-pointer"
+                                    animate={{
+                                      y: [0, -4, 0],
+                                    }}
+                                    transition={{
+                                      duration: 3,
+                                      repeat: Infinity,
+                                      ease: "easeInOut"
+                                    }}
+                                    onClick={() => {
+                                      if (isMe) {
+                                        setEditingMessageId(msg._id);
+                                        setEditValue(msg.content);
+                                      }
+                                    }}
+                                    title={isMe ? "Click to edit" : undefined}
+                                  >
+                                    {msg.content}
+                                  </motion.span>
+                                ) : (
+                                  <span
+                                    className={
+                                      isMe
+                                        ? "cursor-pointer hover:opacity-90 select-text"
+                                        : "select-text"
                                     }
-                                  }}
-                                  title={isMe ? "Click to edit" : undefined}
-                                >
-                                  {highlightText(msg.content, searchQuery)}
-                                </span>
+                                    onClick={() => {
+                                      if (isMe) {
+                                        setEditingMessageId(msg._id);
+                                        setEditValue(msg.content);
+                                      }
+                                    }}
+                                    title={isMe ? "Click to edit" : undefined}
+                                  >
+                                    {highlightText(msg.content, searchQuery)}
+                                  </span>
+                                )}
                                 <div
                                   className={`flex items-center justify-end gap-1 mt-1 -mb-1 opacity-0 group-hover:opacity-100 transition-opacity`}
                                 >
@@ -1866,6 +2153,25 @@ export function ChatWindow({
                           size={12}
                           className={msg.pinned ? "fill-amber-500" : ""}
                         />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleForwardMessage(msg);
+                        }}
+                        className={`p-1 px-1.5 rounded-lg border shadow-md transition-all active:scale-90 ${
+                          copiedMessageId === msg._id
+                            ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/15"
+                            : "text-slate-400 hover:text-white hover:bg-white/10 border-white/5 bg-[#121420]"
+                        }`}
+                        title="Forward (Copy to Clipboard)"
+                      >
+                        {copiedMessageId === msg._id ? (
+                          <Check size={12} className="text-emerald-400" />
+                        ) : (
+                          <Forward size={12} />
+                        )}
                       </button>
                       <button
                         type="button"
@@ -2069,6 +2375,36 @@ export function ChatWindow({
         </AnimatePresence>
       </div>
 
+      {/* Floating ‘New Messages’ Notification Bar */}
+      <AnimatePresence>
+        {isScrolledUp && unreadNewMessages.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 35, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            onClick={handleJumpToFirstUnread}
+            className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center justify-between gap-3 px-5 py-3 rounded-full bg-indigo-600/90 hover:bg-indigo-600 border border-indigo-400/40 text-white backdrop-blur-md shadow-2xl shadow-indigo-500/20 cursor-pointer select-none text-xs font-bold transition-all hover:scale-[1.03] active:scale-95 group"
+            id="unread-floating-bubble"
+          >
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span>
+                {unreadNewMessages.length} unread {unreadNewMessages.length === 1 ? 'message' : 'messages'}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/15 rounded-full text-[10px] uppercase font-black tracking-wider transition-all group-hover:bg-white/25">
+              <span>Jump</span>
+              <ChevronDown size={11} className="transition-transform duration-300 group-hover:translate-y-0.5" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input Zone */}
       <div className="px-6 pb-8 pt-4 bg-[#0F111A]/80 backdrop-blur-2xl relative z-20 border-t border-white/5">
         {/* Expandable Video Record Panel */}
@@ -2079,14 +2415,45 @@ export function ChatWindow({
               animate={{ opacity: 1, height: "auto", scale: 1, y: 0 }}
               exit={{ opacity: 0, height: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#121422]/95 border border-white/10 rounded-[24px] p-4 sm:p-5 mb-4 shadow-2xl relative overflow-hidden backdrop-blur-xl grid grid-cols-2 gap-4 sm:gap-6 md:gap-10 lg:gap-16 items-center"
+              className={`border rounded-[24px] p-5 sm:p-6 mb-4 relative overflow-hidden backdrop-blur-xl grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 md:gap-14 lg:gap-20 items-center justify-center transition-all duration-500 ease-out ${
+                isRecordingVideo
+                  ? isRecordingPaused
+                    ? "bg-[#140F08]/95 border-amber-500/25 shadow-[0_0_50px_-5px_rgba(245,158,11,0.15)] shadow-amber-500/10"
+                    : "bg-[#140b10]/95 border-red-500/25 shadow-[0_0_50px_-5px_rgba(239,68,68,0.15)] shadow-red-500/10"
+                  : videoUrl
+                  ? "bg-[#0e101E]/95 border-indigo-500/25 shadow-[0_0_50px_-5px_rgba(99,102,241,0.15)] shadow-indigo-500/10"
+                  : "bg-[#121422]/95 border-white/10 shadow-2xl shadow-black/80"
+              }`}
               id="video-recording-panel"
             >
+              {/* Dynamic Status Glow Stripe */}
+              <div
+                className={`absolute top-0 left-0 right-0 h-[3.5px] transition-all duration-500 ${
+                  isRecordingVideo
+                    ? isRecordingPaused
+                      ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600"
+                      : "bg-gradient-to-r from-red-500 via-rose-500 to-red-600 animate-pulse"
+                    : videoUrl
+                    ? "bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600"
+                    : "bg-white/10"
+                }`}
+              />
+
               {/* Camera view / Playback container */}
               <div className="flex flex-col items-center justify-center w-full min-w-0">
-                <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner flex items-center justify-center">
+                <div
+                  className={`relative aspect-video w-full rounded-2xl overflow-hidden bg-[#0c0d17] border shadow-2xl flex items-center justify-center transition-all duration-500 ${
+                    isRecordingVideo && !isRecordingPaused
+                      ? "border-red-500/40 ring-4 ring-red-500/5 shadow-[0_0_30px_rgba(239,68,68,0.12)]"
+                      : isRecordingPaused
+                      ? "border-amber-500/40 ring-4 ring-amber-500/5 shadow-[0_0_30px_rgba(245,158,11,0.12)]"
+                      : videoUrl
+                      ? "border-indigo-500/40 ring-4 ring-indigo-500/5 shadow-[0_0_30px_rgba(99,102,241,0.12)]"
+                      : "border-white/10"
+                  }`}
+                >
                   {videoError ? (
-                    <div className="p-4 text-center text-xs text-red-400 font-medium">
+                    <div className="p-4 text-center text-xs text-red-400 font-medium font-sans">
                       {videoError}
                     </div>
                   ) : !videoUrl ? (
@@ -2106,23 +2473,39 @@ export function ChatWindow({
                       />
 
                       {isRecordingVideo && (
-                        <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-lg text-white font-mono text-[10px] sm:text-xs font-bold uppercase transition-all duration-300 ${isRecordingPaused ? "bg-amber-600/90 text-amber-100" : "bg-red-600/90 animate-pulse"}`}>
+                        <div
+                          className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-white font-mono text-[10px] sm:text-xs font-bold uppercase transition-all duration-300 shadow-md ${
+                            isRecordingPaused
+                              ? "bg-amber-600/90 text-amber-100 border border-amber-400/20"
+                              : "bg-red-600/90 border border-red-400/20 animate-pulse"
+                          }`}
+                        >
                           {!isRecordingPaused ? (
                             <span className="w-2.5 h-2.5 rounded-full bg-white block animate-ping" />
                           ) : (
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-300 block" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-300 block animate-pulse" />
                           )}
                           <span>
-                            {isRecordingPaused ? "PAUSED" : "REC"} • 00:{videoTime < 10 ? "0" : ""}
+                            {isRecordingPaused ? "PAUSED" : "REC"} • 00:
+                            {videoTime < 10 ? "0" : ""}
                             {videoTime}
                           </span>
                         </div>
                       )}
 
                       {!isRecordingVideo && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[1px]">
-                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-widest font-mono text-center px-2">
-                            Camera Viewfinder
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/40 to-black/70 flex flex-col items-center justify-center backdrop-blur-[2px] transition-all duration-300">
+                          <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-inner group">
+                            <Video
+                              size={18}
+                              className="text-slate-400 group-hover:text-white transition-colors duration-300"
+                            />
+                          </div>
+                          <span className="text-[10px] sm:text-[11px] font-semibold text-slate-300 uppercase tracking-widest font-mono text-center px-2">
+                            Feed Ready
+                          </span>
+                          <span className="text-[9px] text-slate-500 font-medium mt-1">
+                            Awaiting Capture
                           </span>
                         </div>
                       )}
@@ -2142,33 +2525,51 @@ export function ChatWindow({
               </div>
 
               {/* Control panel buttons */}
-              <div className="flex flex-col items-center justify-center text-center gap-2.5 w-full select-none min-w-0" id="video-recording-control-col">
+              <div
+                className="flex flex-col items-center justify-center text-center gap-4 w-full select-none min-w-0"
+                id="video-recording-control-col"
+              >
                 <div className="text-center flex flex-col items-center justify-center w-full">
-                  <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight leading-tight">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 select-none">
+                    <Video size={10} className="text-indigo-400" />
+                    Video Note
+                  </span>
+                  <h4 className="text-sm sm:text-base font-extrabold text-white tracking-tight leading-tight">
                     Video Message
                   </h4>
-                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 leading-snug max-w-[150px] sm:max-w-xs">
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-1 leading-relaxed max-w-[170px] sm:max-w-xs">
                     Capture and share a live moment
                   </p>
                 </div>
 
                 {videoThumbnail && (
-                  <div className="flex flex-col items-center gap-1.5 p-1.5 bg-white/5 border border-white/5 rounded-xl duration-300 w-full select-none transition-all" id="video-thumbnail-preview">
-                    <span className="text-[9px] text-[#A78BFA] font-bold tracking-wider uppercase font-mono">
-                      First Frame Preview
-                    </span>
-                    <div className="relative aspect-video w-24 sm:w-28 rounded-lg overflow-hidden border border-white/15 shadow-md">
+                  <div
+                    className="flex flex-col items-center gap-2 p-2.5 bg-gradient-to-b from-white/10 to-transparent border border-white/10 rounded-2xl duration-300 w-full select-none transition-all shadow-lg shadow-black/30 md:scale-105"
+                    id="video-thumbnail-preview"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <span className="text-[9px] text-indigo-300/90 font-extrabold tracking-wider uppercase font-mono">
+                        Auto Captured Frame
+                      </span>
+                    </div>
+                    <div className="relative aspect-video w-28 sm:w-32 rounded-xl overflow-hidden border border-white/20 shadow-2xl transition-all duration-300 hover:scale-105 ring-4 ring-indigo-500/10">
                       <img
                         src={videoThumbnail}
                         alt="First Frame Thumbnail Preview"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-1.5">
+                        <span className="text-[8px] font-mono font-bold text-white/80 bg-black/40 px-1 py-0.5 rounded backdrop-blur-xs">
+                          0:00
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1.5 w-full max-w-[160px] sm:max-w-[200px] mx-auto mt-1.5 items-center justify-center">
+                <div className="flex flex-col gap-2 w-full max-w-[160px] sm:max-w-[210px] mx-auto mt-1 items-center justify-center">
                   {!videoUrl ? (
                     <>
                       {!isRecordingVideo ? (
@@ -2177,10 +2578,10 @@ export function ChatWindow({
                           id="btn-start-record-video"
                           onClick={startRecordingVideo}
                           disabled={!!videoError}
-                          className="w-full py-2 sm:py-2.5 px-3 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:hover:bg-red-500 rounded-xl text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 active:scale-95 transition-all duration-150 cursor-pointer outline-none border-none select-none"
+                          className="w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 disabled:opacity-45 rounded-xl text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-500/25 hover:shadow-red-500/40 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none border-none select-none"
                         >
-                          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-white rounded-full" />
-                          Start Record
+                          <span className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
+                          Start Recording
                         </button>
                       ) : (
                         <>
@@ -2189,9 +2590,13 @@ export function ChatWindow({
                               type="button"
                               id="btn-resume-record-video"
                               onClick={resumeRecordingVideo}
-                              className="w-full py-2 sm:py-2.5 px-3 bg-green-500 hover:bg-green-600 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-green-500/20 active:scale-95 transition-all duration-150 cursor-pointer outline-none border-none select-none animate-pulse"
+                              className="w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none border-none select-none animate-pulse"
                             >
-                              <Play size={11} className="sm:w-3 sm:h-3" fill="currentColor" />
+                              <Play
+                                size={11}
+                                className="sm:w-3.5 sm:h-3.5"
+                                fill="currentColor"
+                              />
                               Resume
                             </button>
                           ) : (
@@ -2199,9 +2604,13 @@ export function ChatWindow({
                               type="button"
                               id="btn-pause-record-video"
                               onClick={pauseRecordingVideo}
-                              className="w-full py-2 sm:py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all duration-150 cursor-pointer outline-none border-none select-none"
+                              className="w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none border-none select-none"
                             >
-                              <Pause size={11} className="sm:w-3 sm:h-3" fill="currentColor" />
+                              <Pause
+                                size={11}
+                                className="sm:w-3.5 sm:h-3.5"
+                                fill="currentColor"
+                              />
                               Pause
                             </button>
                           )}
@@ -2209,9 +2618,9 @@ export function ChatWindow({
                             type="button"
                             id="btn-stop-record-video"
                             onClick={stopRecordingVideo}
-                            className="w-full py-2 sm:py-2.5 px-3 bg-yellow-500 hover:bg-yellow-600 rounded-xl text-black font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20 active:scale-95 transition-all duration-150 cursor-pointer outline-none border-none select-none"
+                            className="w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 font-black text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/30 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none border-none select-none"
                           >
-                            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-black rounded-sm" />
+                            <span className="w-2.5 h-2.5 bg-black rounded-xs" />
                             Stop & Review
                           </button>
                         </>
@@ -2223,20 +2632,24 @@ export function ChatWindow({
                         type="button"
                         id="btn-send-record-video"
                         onClick={sendRecordedVideo}
-                        className="w-full py-2 sm:py-2.5 px-3 bg-gradient-to-br from-indigo-500 to-purple-600 hover:scale-[1.02] rounded-xl text-white font-black text-[10px] sm:text-xs uppercase tracking-wide flex items-center justify-center gap-2 shadow-xl shadow-purple-500/30 active:scale-95 transition-all duration-150 cursor-pointer outline-none border-none"
+                        className="w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 hover:shadow-purple-500/40 hover:scale-[1.01] rounded-xl text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-purple-500/25 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none border-none"
                       >
-                        <Send size={11} fill="white" className="sm:w-3 sm:h-3" />
+                        <Send
+                          size={11}
+                          fill="white"
+                          className="sm:w-3.5 sm:h-3.5"
+                        />
                         Send Clip
                       </button>
 
                       <button
                         type="button"
                         id="btn-retake-record-video"
-                        onClick={startVideoMode}
-                        className="w-full py-2 sm:py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-white rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all duration-150 cursor-pointer outline-none"
+                        onClick={handleRetakeRecord}
+                        className="w-full py-2.5 sm:py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 hover:text-amber-400 text-white rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 cursor-pointer outline-none"
                       >
-                        <RotateCcw size={11} className="sm:w-3 sm:h-3" />
-                        Retake
+                        <RotateCcw size={11} className="sm:w-3.5 sm:h-3.5" />
+                        Discard & Retake
                       </button>
                     </>
                   )}
@@ -2245,7 +2658,7 @@ export function ChatWindow({
                     type="button"
                     id="btn-close-record-video"
                     onClick={closeVideoMode}
-                    className="w-full py-1.5 sm:py-2 px-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl font-bold text-[9px] sm:text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer outline-none border-none"
+                    className="w-full py-2 px-4 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl font-extrabold text-[9px] sm:text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer outline-none border-none animate-delay-150"
                   >
                     <X size={11} className="sm:w-3 sm:h-3" />
                     Cancel
@@ -2294,6 +2707,89 @@ export function ChatWindow({
           )}
         </AnimatePresence>
 
+        {/* Attached Image Preview Card */}
+        <AnimatePresence>
+          {attachmentError && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 15 }}
+              className="mb-3.5 bg-red-500/10 border border-red-500/20 rounded-2xl p-4.5 flex justify-between items-center text-red-400 text-xs font-bold leading-relaxed shadow-lg backdrop-blur-md"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                <span>{attachmentError}</span>
+              </div>
+              <button
+                type="button"
+                className="text-slate-500 hover:text-white transition-all text-xs border border-white/5 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center cursor-pointer font-mono"
+                onClick={() => setAttachmentError(null)}
+              >
+                ×
+              </button>
+            </motion.div>
+          )}
+
+          {attachedImage && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, y: 15 }}
+              animate={{ opacity: 1, height: "auto", y: 0 }}
+              exit={{ opacity: 0, height: 0, y: 15 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-[#121422]/95 border border-indigo-500/20 rounded-[24px] p-4.5 mb-4 shadow-xl backdrop-blur-xl flex items-center justify-between gap-4 overflow-hidden relative"
+              id="image-preview-active-card"
+            >
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 animate-pulse" />
+              
+              <div className="flex items-center gap-4 overflow-hidden">
+                <div className="relative aspect-square w-16 sm:w-20 rounded-xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 ring-4 ring-indigo-500/10 shrink-0">
+                  <img
+                    src={attachedImage}
+                    alt="Attached Image Preview"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="flex flex-col text-left overflow-hidden">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-[9px] font-bold text-indigo-300 uppercase tracking-widest mb-1 shadow-inner select-none w-max">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                    Image Attached
+                  </span>
+                  <span className="text-slate-300 text-xs font-semibold truncate max-w-[200px] sm:max-w-[400px]">
+                    {input.trim() ? `Caption: "${input.trim()}"` : "Add a caption or send as is"}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachedImage(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+                className="w-9 h-9 flex items-center justify-center text-rose-400 hover:text-white bg-rose-500/5 hover:bg-rose-500/20 border border-rose-500/10 rounded-full transition-all shrink-0 cursor-pointer outline-none select-none shadow-md"
+                title="Discard attachment"
+              >
+                <Trash2 size={15} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showInputEmojiPicker && (
+            <div className="absolute bottom-[104px] right-4 sm:right-16 z-[100] animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <EmojiReactionPicker
+                isMe={true}
+                onSelectEmoji={handleInputEmojiSelect}
+                onClose={() => setShowInputEmojiPicker(false)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
         <form
           onSubmit={handleSubmit}
           className="bg-white/5 border border-white/10 rounded-[28px] p-2 flex items-center gap-1 shadow-2xl shadow-black/20 backdrop-blur-xl group focus-within:border-indigo-500/30 transition-all"
@@ -2323,7 +2819,9 @@ export function ChatWindow({
                 ? "Listening..."
                 : isVideoMode
                   ? "Camera mode active..."
-                  : "Message Aka Hub..."
+                  : attachedImage
+                    ? "Add a caption..."
+                    : "Message Aka Hub..."
             }
             disabled={isRecording || isVideoMode}
             className={`flex-1 bg-transparent py-4 px-3 text-white placeholder-slate-600 focus:outline-none font-medium text-[16px] ${isRecording || isVideoMode ? "opacity-50 animate-pulse" : ""}`}
@@ -2331,9 +2829,11 @@ export function ChatWindow({
 
           <button
             type="button"
-            className="w-12 h-12 flex items-center justify-center text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-[22px]"
+            onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
+            className={`w-12 h-12 flex items-center justify-center transition-all rounded-[22px] ${showInputEmojiPicker ? "text-indigo-400 bg-indigo-500/10 scale-110 shadow-lg shadow-indigo-500/20" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
+            title="Choose Emojis"
           >
-            <Smile size={22} />
+            <Smile size={22} className={showInputEmojiPicker ? "animate-wiggle" : ""} />
           </button>
 
           <button
@@ -2359,7 +2859,7 @@ export function ChatWindow({
 
           <button
             type="submit"
-            disabled={!input.trim() || isRecording || isVideoMode}
+            disabled={(!input.trim() && !attachedImage) || isRecording || isVideoMode}
             className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 hover:scale-[1.03] active:scale-95 rounded-[22px] text-white shadow-xl shadow-purple-500/30 transition-all flex items-center justify-center disabled:opacity-30 disabled:grayscale transition-all"
           >
             <Send size={18} fill="white" className="ml-0.5" />
@@ -2467,6 +2967,17 @@ export function ChatWindow({
             >
               <span>📌</span>
               {contextMenu.msg.pinned ? "Unpin Message" : "Pin Message"}
+            </button>
+
+            <button
+              onClick={() => {
+                handleForwardMessage(contextMenu.msg);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-2.5 hover:bg-white/5 rounded-xl text-xs font-bold text-slate-200 transition-all cursor-pointer flex items-center gap-2 border-none bg-transparent"
+            >
+              <span>➡️</span>
+              Forward Message (Copy)
             </button>
 
             {contextMenu.msg.sender._id === user.id && (

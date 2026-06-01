@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Sparkles, Plus, Smile, Heart, ThumbsUp, Activity, Compass, LucideIcon, Upload, X } from 'lucide-react';
+import { Search, Sparkles, Plus, Smile, Heart, ThumbsUp, Activity, Compass, LucideIcon, Upload, X, Clock } from 'lucide-react';
 
 export interface EmojiItem {
   emoji: string;
@@ -57,6 +57,31 @@ export const EMOJI_LIST: EmojiItem[] = [
   { emoji: '🙄', name: 'Rolling Eyes', category: 'smileys', keywords: ['whatever', 'roll', 'annoyed'] },
   { emoji: '😮', name: 'Open Mouth Surprise', category: 'smileys', keywords: ['wow', 'shock', 'surprise'] },
   { emoji: '🥱', name: 'Yawning Tired', category: 'smileys', keywords: ['tired', 'bored', 'yawn'] },
+  { emoji: '🤡', name: 'Clown Face', category: 'smileys', keywords: ['clown', 'silly', 'circus', 'joker', 'party', 'funny'] },
+  { emoji: '🃏', name: 'Joker Card', category: 'smileys', keywords: ['joker', 'card', 'wild', 'game', 'play', 'trick', 'clown'] },
+  { emoji: '😈', name: 'Smiling Devil', category: 'smileys', keywords: ['devil', 'horns', 'evil', 'mischievous', 'purple', 'smile'] },
+  { emoji: '👿', name: 'Angry Devil', category: 'smileys', keywords: ['devil', 'horns', 'angry', 'mad', 'evil', 'purple'] },
+  { emoji: '💀', name: 'Skull', category: 'smileys', keywords: ['skull', 'skeleton', 'death', 'dead', 'bones', 'spooky'] },
+  { emoji: '☠️', name: 'Skull & Crossbones', category: 'smileys', keywords: ['skull', 'pirate', 'poison', 'dead', 'danger', 'spooky'] },
+  { emoji: '👻', name: 'Ghost', category: 'smileys', keywords: ['ghost', 'spooky', 'halloween', 'scary', 'boo'] },
+  { emoji: '👽', name: 'Alien', category: 'smileys', keywords: ['alien', 'ufo', 'space', 'martian', 'spooky', 'monster'] },
+  { emoji: '👾', name: 'Alien Monster', category: 'smileys', keywords: ['alien', 'monster', 'gaming', 'retro', 'space', 'pixel'] },
+  { emoji: '🤖', name: 'Robot Face', category: 'smileys', keywords: ['robot', 'bot', 'tech', 'cpu', 'ai', 'computer'] },
+  { emoji: '👹', name: 'Ogre', category: 'smileys', keywords: ['ogre', 'monster', 'scary', 'red', 'mask', 'daemon'] },
+  { emoji: '👺', name: 'Goblin', category: 'smileys', keywords: ['goblin', 'monster', 'scary', 'red', 'mask', 'nose'] },
+  { emoji: '🥷', name: 'Ninja', category: 'smileys', keywords: ['ninja', 'stealth', 'sword', 'shadow', 'black'] },
+  { emoji: '🧙', name: 'Mage Wizard', category: 'smileys', keywords: ['mage', 'wizard', 'witch', 'magic', 'spell', 'fantasy'] },
+  { emoji: '🦸', name: 'Superhero', category: 'smileys', keywords: ['hero', 'superhero', 'cape', 'power', 'saves'] },
+  { emoji: '🦹', name: 'Supervillain', category: 'smileys', keywords: ['villain', 'evil', 'supervillain', 'cape', 'bad'] },
+  { emoji: '🎭', name: 'Performing Arts', category: 'smileys', keywords: ['theater', 'mask', 'joker', 'smile', 'cry', 'drama', 'play'] },
+  { emoji: '🤓', name: 'Nerd Glasses', category: 'smileys', keywords: ['nerd', 'geek', 'smart', 'glasses', 'study'] },
+  { emoji: '🤠', name: 'Cowboy Hat', category: 'smileys', keywords: ['cowboy', 'hat', 'wild', 'west', 'sheriff'] },
+  { emoji: '🤤', name: 'Drooling Face', category: 'smileys', keywords: ['drool', 'hungry', 'desire', 'delicious'] },
+  { emoji: '🤫', name: 'Shushing Quiet', category: 'smileys', keywords: ['shush', 'quiet', 'silent', 'secret'] },
+  { emoji: '🦄', name: 'Unicorn Face', category: 'smileys', keywords: ['unicorn', 'magic', 'fantasy', 'mythical', 'rainbow'] },
+  { emoji: '🐲', name: 'Dragon Face', category: 'smileys', keywords: ['dragon', 'fire', 'monster', 'fantasy', 'china'] },
+  { emoji: '🧟', name: 'Zombie', category: 'smileys', keywords: ['zombie', 'undead', 'monster', 'brain', 'scary'] },
+  { emoji: '🧠', name: 'Brain', category: 'smileys', keywords: ['brain', 'mind', 'think', 'smart', 'intellect'] },
   
   // Gestures
   { emoji: '👍', name: 'Thumbs Up', category: 'gestures', keywords: ['yes', 'agree', 'ok', 'good', 'like'] },
@@ -74,6 +99,11 @@ export const EMOJI_LIST: EmojiItem[] = [
   { emoji: '👊', name: 'Punch Brofist', category: 'gestures', keywords: ['fist', 'punch', 'brofist'] },
   { emoji: '🤝', name: 'Handshake Deal', category: 'gestures', keywords: ['agree', 'deal', 'shake', 'friend'] },
   { emoji: '💪', name: 'Strong Biceps', category: 'gestures', keywords: ['strong', 'flex', 'gym', 'power'] },
+  { emoji: '🫡', name: 'Saluting Face', category: 'gestures', keywords: ['salute', 'respect', 'yes', 'captain', 'military'] },
+  { emoji: 'pinch', name: 'Pinching Hand', category: 'gestures', keywords: ['small', 'little', 'pinch', 'size'] },
+  { emoji: '🤏', name: 'Pinching Hand', category: 'gestures', keywords: ['small', 'little', 'pinch', 'size'] },
+  { emoji: '✍️', name: 'Writing Hand', category: 'gestures', keywords: ['write', 'author', 'pen', 'pencil', 'homework'] },
+  { emoji: '🖐️', name: 'Splayed Hand', category: 'gestures', keywords: ['hand', 'five', 'stop', 'splayed'] },
 
   // Hearts & Emotions
   { emoji: '❤️', name: 'Red Heart', category: 'hearts', keywords: ['love', 'heart', 'like'] },
@@ -83,6 +113,11 @@ export const EMOJI_LIST: EmojiItem[] = [
   { emoji: '💙', name: 'Blue Heart', category: 'hearts', keywords: ['love', 'heart', 'trust'] },
   { emoji: '💜', name: 'Purple Heart', category: 'hearts', keywords: ['love', 'heart', 'amethyst'] },
   { emoji: '🖤', name: 'Black Heart', category: 'hearts', keywords: ['love', 'heart', 'dark'] },
+  { emoji: '🤍', name: 'White Heart', category: 'hearts', keywords: ['love', 'heart', 'clear'] },
+  { emoji: '🤎', name: 'Brown Heart', category: 'hearts', keywords: ['love', 'heart', 'earth'] },
+  { emoji: '❤️‍🔥', name: 'Heart on Fire', category: 'hearts', keywords: ['love', 'burn', 'passion', 'hot'] },
+  { emoji: '💗', name: 'Growing Heart', category: 'hearts', keywords: ['love', 'heart', 'growing', 'affection'] },
+  { emoji: '💓', name: 'Beating Heart', category: 'hearts', keywords: ['love', 'heart', 'beating', 'alive'] },
   { emoji: '💔', name: 'Broken Heart', category: 'hearts', keywords: ['love', 'sad', 'heart', 'broken'] },
   { emoji: '❣️', name: 'Exclamation Heart', category: 'hearts', keywords: ['love', 'heart', 'emphasis'] },
   { emoji: '💕', name: 'Two Hearts', category: 'hearts', keywords: ['love', 'hearts', 'affection'] },
@@ -92,6 +127,7 @@ export const EMOJI_LIST: EmojiItem[] = [
   // Activities & Fun
   { emoji: '🔥', name: 'Fire Hot', category: 'activities', keywords: ['hot', 'lit', 'fire', 'cool', 'awesome'] },
   { emoji: '🎉', name: 'Celebration Popper', category: 'activities', keywords: ['party', 'celebrate', 'congrats', 'popper'] },
+  { emoji: '🎊', name: 'Confetti Ball', category: 'activities', keywords: ['party', 'celebration', 'confetti', 'yay'] },
   { emoji: '✨', name: 'Sparkles Magic', category: 'activities', keywords: ['sparkle', 'magic', 'shiny', 'new'] },
   { emoji: '🌟', name: 'Glowing Star', category: 'activities', keywords: ['star', 'glowing', 'magic', 'shine'] },
   { emoji: '🎈', name: 'Balloon Party', category: 'activities', keywords: ['party', 'celebrate', 'balloon'] },
@@ -99,6 +135,15 @@ export const EMOJI_LIST: EmojiItem[] = [
   { emoji: '🏆', name: 'Gold Trophy', category: 'activities', keywords: ['win', 'prize', 'trophy', 'first'] },
   { emoji: '🥇', name: 'Gold Medal', category: 'activities', keywords: ['win', 'gold', 'medal', 'first'] },
   { emoji: '🎮', name: 'Game Controller', category: 'activities', keywords: ['play', 'game', 'gaming'] },
+  { emoji: '🎲', name: 'Gaming Dice', category: 'activities', keywords: ['game', 'dice', 'play', 'chance', 'luck'] },
+  { emoji: '🎧', name: 'Headphones', category: 'activities', keywords: ['music', 'song', 'listen', 'audio', 'sound'] },
+  { emoji: '🎸', name: 'Guitar', category: 'activities', keywords: ['music', 'instrument', 'rock', 'guitar', 'play'] },
+  { emoji: '🎹', name: 'Musical Keyboard', category: 'activities', keywords: ['music', 'piano', 'keyboard', 'synthesizer'] },
+  { emoji: '☕', name: 'Hot Coffee', category: 'activities', keywords: ['coffee', 'tea', 'drink', 'morning', 'hot'] },
+  { emoji: '🍺', name: 'Beer Mug', category: 'activities', keywords: ['beer', 'drink', 'alcohol', 'cheers', 'pub'] },
+  { emoji: '🥂', name: 'Clinking Wine Glasses', category: 'activities', keywords: ['cheers', 'drink', 'celebration', 'party', 'wine'] },
+  { emoji: '🍕', name: 'Pizza slice', category: 'activities', keywords: ['pizza', 'food', 'cheese', 'dinner', 'delicious'] },
+  { emoji: '🌮', name: 'Taco Mexican', category: 'activities', keywords: ['taco', 'food', 'mexican', 'delicious'] },
 
   // Objects & Symbols
   { emoji: '💡', name: 'Light Bulb Idea', category: 'explore', keywords: ['idea', 'light', 'think', 'smart'] },
@@ -109,14 +154,21 @@ export const EMOJI_LIST: EmojiItem[] = [
   { emoji: '📅', name: 'Calendar Date', category: 'explore', keywords: ['date', 'calendar', 'time'] },
   { emoji: '📣', name: 'Megaphone Announcement', category: 'explore', keywords: ['announce', 'shout', 'news'] },
   { emoji: '🚀', name: 'Rocket Launch', category: 'explore', keywords: ['rocket', 'launch', 'fast', 'high'] },
+  { emoji: '🛸', name: 'Flying Saucer UFO', category: 'explore', keywords: ['ufo', 'alien', 'space', 'uap', 'cosmic'] },
+  { emoji: '🔭', name: 'Telescope Star', category: 'explore', keywords: ['telescope', 'space', 'galaxy', 'science', 'astronomy'] },
   { emoji: '🎨', name: 'Palette Art', category: 'explore', keywords: ['art', 'paint', 'draw', 'creative'] },
   { emoji: '🎯', name: 'Bullseye Target', category: 'explore', keywords: ['target', 'hit', 'aim', 'focus'] },
+  { emoji: '👀', name: 'Watching Eyes', category: 'explore', keywords: ['look', 'watch', 'secret', 'seen', 'eyes'] },
   { emoji: '💯', name: 'Hundred Percent', category: 'explore', keywords: ['cool', 'agree', 'perfect', '100'] },
   { emoji: '✅', name: 'Check Done', category: 'explore', keywords: ['yes', 'done', 'correct'] },
-  { emoji: '❌', name: 'Cross Delete', category: 'explore', keywords: ['no', 'delete', 'wrong'] }
+  { emoji: '❌', name: 'Cross Delete', category: 'explore', keywords: ['no', 'delete', 'wrong'] },
+  { emoji: '⚠️', name: 'Warning Alert', category: 'explore', keywords: ['warning', 'alert', 'danger', 'attention'] },
+  { emoji: '🔮', name: 'Crystal Ball Magic', category: 'explore', keywords: ['magic', 'future', 'fortune', 'witch'] },
+  { emoji: '💰', name: 'Money Bag', category: 'explore', keywords: ['money', 'cash', 'rich', 'wealth', 'gold'] }
 ];
 
-const CATEGORIES: { id: 'all' | 'smileys' | 'gestures' | 'hearts' | 'activities' | 'explore' | 'custom'; label: string; icon: LucideIcon }[] = [
+const CATEGORIES: { id: 'all' | 'recent' | 'smileys' | 'gestures' | 'hearts' | 'activities' | 'explore' | 'custom'; label: string; icon: LucideIcon }[] = [
+  { id: 'recent', label: 'Recent', icon: Clock },
   { id: 'all', label: 'All', icon: Sparkles },
   { id: 'smileys', label: 'Smileys', icon: Smile },
   { id: 'gestures', label: 'Hands', icon: ThumbsUp },
@@ -125,6 +177,19 @@ const CATEGORIES: { id: 'all' | 'smileys' | 'gestures' | 'hearts' | 'activities'
   { id: 'explore', label: 'Symbols', icon: Compass },
   { id: 'custom', label: 'Custom', icon: Plus },
 ];
+
+export const SKIN_TONES = [
+  { id: 'neutral', emoji: '🖐️', modifier: '' },
+  { id: 'light', emoji: '🖐🏻', modifier: '🏻' },
+  { id: 'medium-light', emoji: '🖐🏼', modifier: '🏼' },
+  { id: 'medium', emoji: '🖐🏽', modifier: '🏽' },
+  { id: 'medium-dark', emoji: '🖐🏾', modifier: '🏾' },
+  { id: 'dark', emoji: '🖐🏿', modifier: '🏿' },
+];
+
+export const SKIN_TONE_SUPPORTED_EMOJIS = new Set([
+  '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👏', '🙌', '🙏', '👋', '👊', '🤝', '💪', '🖐️', '🖐', '🫡', '🤏', '✍️'
+]);
 
 interface EmojiReactionPickerProps {
   onSelectEmoji: (emoji: string) => void;
@@ -140,7 +205,63 @@ interface CustomEmoji {
 export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReactionPickerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'all' | 'smileys' | 'gestures' | 'hearts' | 'activities' | 'explore' | 'custom'>('all');
+  
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('chat_recent_emojis');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return [];
+  });
+
+  const [selectedSkinTone, setSelectedSkinTone] = useState<string>(() => {
+    try {
+      return localStorage.getItem('chat_emoji_skin_tone') || 'neutral';
+    } catch {
+      return 'neutral';
+    }
+  });
+
+  const handleSkinToneChange = (toneId: string) => {
+    setSelectedSkinTone(toneId);
+    try {
+      localStorage.setItem('chat_emoji_skin_tone', toneId);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getModifiedEmoji = (emoji: string): string => {
+    if (selectedSkinTone === 'neutral') return emoji;
+    const tone = SKIN_TONES.find(t => t.id === selectedSkinTone);
+    if (!tone || !tone.modifier) return emoji;
+
+    const base = emoji.replace(/\uFE0F/g, "");
+    if (SKIN_TONE_SUPPORTED_EMOJIS.has(base) || SKIN_TONE_SUPPORTED_EMOJIS.has(emoji)) {
+      return base + tone.modifier;
+    }
+    return emoji;
+  };
+
+  const [activeCategory, setActiveCategory] = useState<'all' | 'recent' | 'smileys' | 'gestures' | 'hearts' | 'activities' | 'explore' | 'custom'>(() => {
+    try {
+      const saved = localStorage.getItem('chat_recent_emojis');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return 'recent';
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 'all';
+  });
 
   const [urlInput, setUrlInput] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -169,6 +290,20 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    setRecentEmojis(prev => {
+      const filtered = prev.filter(e => e !== emoji);
+      const updated = [emoji, ...filtered].slice(0, 10);
+      try {
+        localStorage.setItem('chat_recent_emojis', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+      return updated;
+    });
+    onSelectEmoji(emoji);
   };
 
   const showError = (msg: string) => {
@@ -267,16 +402,23 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
       >
         {/* Row 1: Quick Shortcut Emojis */}
         <div className="flex items-center gap-1.5 justify-start">
-          {priorityEmojis.map(emoji => (
-            <button
-              key={emoji}
-              onClick={() => onSelectEmoji(emoji)}
-              className="text-[18px] hover:scale-135 active:scale-90 transition-transform p-1.5 duration-150 cursor-pointer outline-none hover:bg-white/5 rounded-xl text-white"
-              type="button"
-            >
-              {emoji}
-            </button>
-          ))}
+          {priorityEmojis.map(emoji => {
+            const modified = getModifiedEmoji(emoji);
+            return (
+              <motion.button
+                key={emoji}
+                onClick={() => handleSelectEmoji(modified)}
+                whileHover={{ scale: 1.35 }}
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                className="text-[18px] p-1.5 cursor-pointer outline-none hover:bg-white/5 rounded-xl text-white"
+                type="button"
+                title={emoji !== modified ? `${emoji} (skin toned)` : undefined}
+              >
+                {modified}
+              </motion.button>
+            );
+          })}
 
           {/* Plus expander button if not expanded */}
           {!isExpanded && (
@@ -313,6 +455,26 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
                 />
               </div>
 
+              {/* Skin Tone Selector */}
+              <div className="flex items-center justify-between bg-[#0E101D]/40 rounded-xl p-1 px-2 border border-white/5 select-none shrink-0">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider font-mono text-slate-400 pl-1">Skin Tone</span>
+                <div className="flex gap-1.5">
+                  {SKIN_TONES.map(tone => (
+                    <button
+                      key={tone.id}
+                      onClick={() => handleSkinToneChange(tone.id)}
+                      className={`w-5.5 h-5.5 rounded-md flex items-center justify-center text-xs transition-transform active:scale-95 hover:scale-110 cursor-pointer ${
+                        selectedSkinTone === tone.id ? 'bg-purple-500/25 ring-1 ring-purple-500/50' : 'hover:bg-white/5'
+                      }`}
+                      title={`${tone.id.charAt(0).toUpperCase() + tone.id.slice(1)} skin tone`}
+                      type="button"
+                    >
+                      <span className="text-sm select-none leading-none">{tone.emoji}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Category tabs list */}
               <div className="flex gap-1 overflow-x-auto pb-1 custom-scrollbar shrink-0 select-none -mx-1 px-1">
                 {CATEGORIES.map(cat => {
@@ -336,8 +498,45 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
                 })}
               </div>
 
-              {/* If Custom Category is Selected */}
-              {activeCategory === 'custom' ? (
+              {/* If Recent Category is Selected */}
+              {activeCategory === 'recent' ? (
+                <div className="flex flex-col gap-2">
+                  <div className="h-[140px] overflow-y-auto px-1 grid grid-cols-5 gap-2 custom-scrollbar bg-[#0E101D]/40 rounded-xl p-2 select-none border border-white/5">
+                    {recentEmojis.map((emoji, index) => {
+                      const isCustom = emoji.startsWith('http') || emoji.startsWith('data:');
+                      return (
+                        <motion.button
+                          key={`${emoji}-${index}`}
+                          onClick={() => handleSelectEmoji(emoji)}
+                          whileHover={{ scale: 1.20 }}
+                          whileTap={{ scale: 0.85 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                          className="aspect-square flex items-center justify-center hover:bg-white/5 cursor-pointer rounded-lg outline-none select-none p-1"
+                          title={isCustom ? "Recent Custom Emoji" : undefined}
+                          type="button"
+                        >
+                          {isCustom ? (
+                            <img
+                              src={emoji}
+                              alt="Recent Custom"
+                              className="w-[20px] h-[20px] object-contain pointer-events-none rounded"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span className="text-[17px] text-white">{emoji}</span>
+                          )}
+                        </motion.button>
+                      );
+                    })}
+
+                    {recentEmojis.length === 0 && (
+                      <div className="col-span-5 py-8 text-center text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">
+                        No recent emojis
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : activeCategory === 'custom' ? (
                 <div className="flex flex-col gap-2">
                   {/* Compact Add Section */}
                   <div className="flex flex-col gap-1 px-1.5 py-1.5 bg-[#0E101D] border border-white/5 rounded-xl">
@@ -377,9 +576,12 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
                   <div className="h-[95px] overflow-y-auto px-1 grid grid-cols-6 gap-1.5 custom-scrollbar bg-[#0E101D]/40 rounded-xl p-1.5 select-none border border-white/5">
                     {filteredCustomEmojis.map((item, index) => (
                       <div key={`${item.url}-${index}`} className="relative group/custom aspect-square rounded-lg overflow-hidden bg-white/5 border border-white/5 hover:border-purple-500/40 flex items-center justify-center">
-                        <button
-                          onClick={() => onSelectEmoji(item.url)}
-                          className="w-full h-full p-1 hover:scale-110 active:scale-95 transition-transform flex items-center justify-center cursor-pointer select-none"
+                        <motion.button
+                          onClick={() => handleSelectEmoji(item.url)}
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.85 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                          className="w-full h-full p-1 flex items-center justify-center cursor-pointer select-none"
                           title={item.name}
                           type="button"
                         >
@@ -389,7 +591,7 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
                             className="w-full h-full object-contain pointer-events-none rounded"
                             referrerPolicy="no-referrer"
                           />
-                        </button>
+                        </motion.button>
                         
                         {/* Delete item button */}
                         <button
@@ -417,17 +619,23 @@ export function EmojiReactionPicker({ onSelectEmoji, onClose, isMe }: EmojiReact
               ) : (
                 /* Emoji list grid */
                 <div className="h-[140px] overflow-y-auto px-1 grid grid-cols-7 gap-1.5 custom-scrollbar bg-[#0E101D]/40 rounded-xl p-2 select-none border border-white/5">
-                  {filteredEmojis.map(item => (
-                    <button
-                      key={item.emoji}
-                      onClick={() => onSelectEmoji(item.emoji)}
-                      className="text-[17px] hover:scale-130 active:scale-90 transition-transform aspect-square flex items-center justify-center hover:bg-white/5 cursor-pointer rounded-lg outline-none text-white select-none duration-150"
-                      title={item.name}
-                      type="button"
-                    >
-                      {item.emoji}
-                    </button>
-                  ))}
+                  {filteredEmojis.map(item => {
+                    const modified = getModifiedEmoji(item.emoji);
+                    return (
+                      <motion.button
+                        key={item.emoji}
+                        onClick={() => handleSelectEmoji(modified)}
+                        whileHover={{ scale: 1.30 }}
+                        whileTap={{ scale: 0.85 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                        className="text-[17px] aspect-square flex items-center justify-center hover:bg-white/5 cursor-pointer rounded-lg outline-none text-white select-none"
+                        title={item.name}
+                        type="button"
+                      >
+                        {modified}
+                      </motion.button>
+                    );
+                  })}
 
                   {filteredEmojis.length === 0 && (
                     <div className="col-span-7 py-8 text-center text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">
